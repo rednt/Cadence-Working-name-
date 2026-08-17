@@ -7,6 +7,26 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
+.vs/
+.vscode/
+*.code-workspace
+
+# Visual Studio temporary files, build results, and files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.pidb
+*.booproj
+*.pdb
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+
+# Visual Studio cache/options directory
+.vs/
+.vscode/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
@@ -55,3 +75,7 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+
+Plan.md
+DEVLOGS.md
