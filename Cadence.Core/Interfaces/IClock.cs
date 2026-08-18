@@ -7,6 +7,6 @@ namespace Cadence.Core.Interfaces
 {
     public interface IClock
     {
-        DateTime now { get; }
+        DateTimeOffset now { get; }
     }
 }
