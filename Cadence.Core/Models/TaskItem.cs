@@ -11,7 +11,7 @@ namespace Cadence.Core.Models
         public TaskPriority Priority { get; set; }
 
         public TaskItem(){}
-        public TaskItem(int id, string title, string containerLabel, TimeOnly? dueAt, TaskStatus status, TaskPriority priority)
+        public TaskItem(int id, string title, string containerLabel, TimeOnly? dueAt, TaskStatus status = TaskStatus.Pending, TaskPriority priority = TaskPriority.Normal)
         {
             Id = id;
             Title = title;
