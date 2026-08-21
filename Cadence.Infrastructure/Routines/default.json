@@ -1,0 +1,50 @@
+{
+  "profile": "Default",
+  "blocks": [
+    {
+      "time": "09:00",
+      "label": "Wake",
+      "role": "wake"
+    },
+    {
+      "time": "09:30",
+      "label": "Morning Routine",
+      "role": "unspecified"
+    },
+    {
+      "time": "10:30",
+      "label": "Learning Block",
+      "role": "unspecified"
+    },
+    {
+      "time": "13:00",
+      "label": "Work Block",
+      "role": "unspecified"
+    },
+    {
+      "time": "18:00",
+      "label": "Evening Routine",
+      "role": "unspecified"
+    },
+    {
+      "time": "19:15",
+      "label": "Gaming",
+      "role": "unspecified"
+    },
+    {
+      "time": "23:00",
+      "label": "Art",
+      "role": "unspecified"
+    },
+    {
+      "time": "01:30",
+      "label": "Wind Down",
+      "role": "unspecified"
+    },
+    {
+      "time": "02:00",
+      "label": "Sleep",
+      "role": "sleep"
+    }
+  ]
+}
