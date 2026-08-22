@@ -34,5 +34,18 @@ namespace Cadence.Infrastructure.Persistence
             _db.NotificationLogs.Add(log);
             await _db.SaveChangesAsync(ct);
         }
+
+        public async Task<bool> CompleteTaskAsync(int id, CancellationToken ct = default)
+        {
+            var task = await _db.Tasks.FindAsync(new object[] { id }, ct);
+            if (task is null)
+            {
+                return false;
+            }
+            task.Status = TaskStatus.Completed;
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+
     }
 }

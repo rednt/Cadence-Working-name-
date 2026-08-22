@@ -233,6 +233,19 @@ namespace Cadence.Tests
                 Logs.Add(log);
                 return Task.CompletedTask;
             }
+            public Task<bool> CompleteTaskAsync(int id, CancellationToken ct = default)
+            {
+                foreach (var tasks in Tasks.Values)
+                {
+                    var task = tasks.FirstOrDefault(t => t.Id == id);
+                    if (task is not null)
+                    {
+                        task.Status = TaskStatus.Completed;
+                        return Task.FromResult(true);
+                    }
+                }
+                return Task.FromResult(false);
+            }
         }
 
         private sealed class MockNotificationSender : INotificationSender

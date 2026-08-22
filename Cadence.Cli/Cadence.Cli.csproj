@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Cadence.Core\Cadence.Core.csproj" />
     <ProjectReference Include="..\Cadence.Infrastructure\Cadence.Infrastructure.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
   </ItemGroup>
 
   <PropertyGroup>
