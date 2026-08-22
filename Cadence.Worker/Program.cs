@@ -8,14 +8,17 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddDbContext<CadenceDbContext>(options =>
+builder.Services.AddSingleton<CadenceDbContext>(sp =>
 {
     var dbPath = Path.Combine(AppContext.BaseDirectory, "CadenceDB", "cadence.db");
     Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-    options.UseSqlite($"Data Source={dbPath}");
+    var options = new DbContextOptionsBuilder<CadenceDbContext>()
+        .UseSqlite($"Data Source={dbPath}")
+        .Options;
+    return new CadenceDbContext(options);
 });
 
-builder.Services.AddScoped<ICadenceStore, SqliteCadenceStore>();
+builder.Services.AddSingleton<ICadenceStore, SqliteCadenceStore>();
 builder.Services.AddSingleton<IRoutineSource>(sp =>
 {
     var loader = new JsonRoutineLoader();
@@ -26,7 +29,7 @@ builder.Services.AddSingleton<IRoutineSource>(sp =>
 builder.Services.AddSingleton<INotificationSender, ConsoleNotificationSender>();
 builder.Services.AddSingleton<IClock>(sp => new SystemClock());
 
-builder.Services.AddScoped<RuleEngine>();
+builder.Services.AddSingleton<RuleEngine>();
 builder.Services.AddHostedService<RuleEngineWorker>();
 
 var host = builder.Build();

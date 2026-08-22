@@ -6,48 +6,34 @@ using Microsoft.Extensions.Logging;
 namespace Cadence.Worker
 {
     public sealed class RuleEngineWorker : BackgroundService
+{
+    private readonly RuleEngine _engine;
+    private readonly ILogger<RuleEngineWorker> _logger;
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
+
+    public RuleEngineWorker(RuleEngine engine, ILogger<RuleEngineWorker> logger)
     {
-        // Inject the Scope Factory
-        private readonly IServiceScopeFactory _scopeFactory; 
-        private readonly ILogger<RuleEngineWorker> _logger;
-        private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
+        _engine = engine;
+        _logger = logger;
+    }
 
-        public RuleEngineWorker(IServiceScopeFactory scopeFactory, ILogger<RuleEngineWorker> logger) 
-        { 
-            _scopeFactory = scopeFactory;
-            _logger = logger;
-        }
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("Cadence Rule Engine started. Ticking every {Interval} seconds.", Interval.TotalSeconds);
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        while (!stoppingToken.IsCancellationRequested)
         {
-            _logger.LogInformation("Cadence Rule Engine started. Ticking every {Interval} seconds.", Interval.TotalSeconds);
-            
-            using (var scope = _scopeFactory.CreateScope())
+            try
             {
-                var engine = scope.ServiceProvider.GetRequiredService<RuleEngine>();
-                await engine.TickAsync(stoppingToken);
+                await _engine.TickAsync(stoppingToken);
             }
-            _logger.LogInformation("Initial tick completed. Entering regular ticking loop.");
-
-            while (!stoppingToken.IsCancellationRequested)
+            catch (Exception ex)
             {
-                try 
-                { 
-                    // Create a fresh scope for every single tick
-                    using var scope = _scopeFactory.CreateScope();
-                    
-                    // Resolve the RuleEngine (and its Scoped DbContext) from the new scope
-                    var engine = scope.ServiceProvider.GetRequiredService<RuleEngine>();
-                    
-                    await engine.TickAsync(stoppingToken); 
-                }
-                catch (Exception ex) 
-                { 
-                    _logger.LogError(ex, "RuleEngine tick failed"); 
-                }
-
-                await Task.Delay(Interval, stoppingToken);
+                _logger.LogError(ex, "RuleEngine tick failed");
             }
+
+            await Task.Delay(Interval, stoppingToken);
         }
     }
+}
 }
