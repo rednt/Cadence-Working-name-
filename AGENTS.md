@@ -26,7 +26,7 @@ No linter, formatter, or CI config exists. No codegen or migrations yet.
 | `Cadence.Core` | Domain models, interfaces, scheduling logic | None |
 | `Cadence.Infrastructure` | EF Core SQLite persistence, JSON routine loading | Core |
 | `Cadence.Worker` | Background service, RuleEngine host, DI wiring | Core, Infrastructure |
-| `Cadence.Cli` | Console entry point (currently stub) | Core, Infrastructure |
+| `Cadence.Cli` | Interactive CLI (`status`, `add`, `complete`) | Core, Infrastructure |
 | `Cadence.Tests` | xUnit tests | Core, Infrastructure |
 
 All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUsings>enable</ImplicitUsings>`.
@@ -36,6 +36,15 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 - **Cadence.Core has zero external dependencies.** Never add NuGet packages or project references to Core.
 - **Infrastructure implements Core interfaces** (`ICadenceStore`, `IRoutineSource`, etc.).
 - **Worker and Cli are application shells** that wire up Core + Infrastructure.
+
+
+## DI Lifetime Rationale
+
+- **`RuleEngine` is singleton** because it holds mutable state (`_lastBlockLabel`, `_lastCycleId`, `_initialized`) that must survive across ticks. If scoped, each tick gets a fresh instance and the `_initialized` flag resets — block transitions are never detected.
+- **`CadenceDbContext` is singleton** because SQLite is a file-based, single-writer database. No client-server connection pool, no concurrent scope conflicts. This is safe for a single-threaded background worker + CLI.
+- **`ICadenceStore` is singleton** to match the DbContext lifetime it wraps.
+- **Migration path:** If Cadence ever becomes a web app or multi-threaded service, switch `RuleEngine` to scoped and inject `IServiceScopeFactory` to resolve `ICadenceStore` per tick. The constructor signature does not change — only the DI registration and worker scope management change.
+
 
 ## Rule Engine
 
@@ -61,17 +70,43 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 - `CadenceDbContext.Database.EnsureCreated()` is called in test setup — no migration step required.
 - Global `using Xunit;` is declared in `Cadence.Tests.csproj`.
 
+
 ## DI & Testing Patterns
 
 - `SystemClock : IClock` exists for production. Tests use a `FakeClock` that returns a fixed `DateTimeOffset`.
 - `RuleEngine` tests use **hand-written mocks** (no Moq). Mock classes are `private sealed` inner classes: `MockRoutineSource`, `MockCadenceStore`, `MockNotificationSender`, `FakeClock`.
 - `RuleEngine` is registered as `AddSingleton` (not transient) because it holds mutable state (`_lastBlockLabel`, `_lastCycleId`).
-- `INotificationSender` has **no real implementation yet** — the DI container registers it unbound (`AddSingleton<INotificationSender>()`), which will throw at runtime.
+- `INotificationSender` is implemented by `ConsoleNotificationSender` (`Cadence.Infrastructure/Notifications/NotificationSender.cs`). Registered as singleton.
+
 
 ## Routine File Format
 
 `JsonRoutineLoader` reads JSON with `{ "profile": "...", "blocks": [...] }`. Block times use 24-hour `HH:mm` format. Enum values are camelCase strings (e.g., `"wake"`, `"sleep"`).
 
+
+
+
+## Config vs State Separation
+
+- **`routines/default.json`** is Configuration as Code — edited in VS Code, version-controlled, defines the block schedule (times, labels, roles). Never edited by the CLI at runtime.
+- **`CadenceDB/cadence.db`** is mutable runtime state — tasks, notification logs. The CLI writes here only.
+- **CLI never touches config in v1.** Hot-reload (`IOptionsMonitor` / `FileSystemWatcher`) is deferred to a future version.
+
+## CLI Command Surface
+
+| Command | Syntax | Description |
+|---|---|---|
+| `status` | `status` | Show current block, cycle ID, and pending tasks |
+| `add` | `add "Title" --container "Label"` | Add a task (defaults to current block if no `--container`) |
+| `complete` | `complete [Id]` | Mark task as completed; shows pending tasks if no ID given |
+
+Planned (Day 7): `update` (task status/priority), `containers` (block listing with pending counts + orphan detection), worker liveness heartbeat.
+
+## Worker Liveness Pattern
+
+`RuleEngineWorker` logs `"Cadence Rule Engine started"` on startup. A future heartbeat will write a `Heartbeat` record to SQLite every tick, allowing an external monitor (Kubernetes liveness probe, health check endpoint) to verify the worker is alive. If no heartbeat within `2 × Interval`, the worker is considered dead.
+
 ## Naming
 
 The repo directory is `Cadence-Working-name-` (with trailing hyphen). The solution and namespaces use `Cadence` without the suffix.
+
