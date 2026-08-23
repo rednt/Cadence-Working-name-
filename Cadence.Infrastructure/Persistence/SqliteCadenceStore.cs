@@ -47,5 +47,29 @@ namespace Cadence.Infrastructure.Persistence
             return true;
         }
 
+        public async Task<bool> ModifyTaskAsync(int id, string newTitle, CancellationToken ct = default)
+        {
+            var task = await _db.Tasks.FindAsync(new object[] { id }, ct);
+            if (task is null)
+            {
+                return false;
+            }
+            task.Title = newTitle;
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        public async Task<IReadOnlyList<ContainerTaskCount>> GetContainerTaskCountsAsync(CancellationToken ct = default)
+        {
+            return await _db.Tasks
+                .GroupBy(t => t.ContainerLabel)
+                .Select(g => new ContainerTaskCount
+                {
+                    ContainerLabel = g.Key,
+                    PendingCount = g.Count(t => t.Status == TaskStatus.Pending)
+                })
+                .ToListAsync(ct);
+        }
+
     }
 }

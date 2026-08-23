@@ -246,6 +246,25 @@ namespace Cadence.Tests
                 }
                 return Task.FromResult(false);
             }
+            public Task<bool> ModifyTaskAsync(int id, string newTitle, CancellationToken ct = default)
+            {
+                foreach (var tasks in Tasks.Values)
+                {
+                    var task = tasks.FirstOrDefault(t => t.Id == id);
+                    if (task is not null)
+                    {
+                        task.Title = newTitle;
+                        return Task.FromResult(true);
+                    }
+                }
+                return Task.FromResult(false);
+            }
+            public Task<IReadOnlyList<ContainerTaskCount>> GetContainerTaskCountsAsync(CancellationToken ct = default)
+            {
+                var counts = Tasks.Select(kvp => new ContainerTaskCount(kvp.Key, kvp.Value.Count(t => t.Status == TaskStatus.Pending)))
+                                  .ToList();
+                return Task.FromResult<IReadOnlyList<ContainerTaskCount>>(counts);
+            }
         }
 
         private sealed class MockNotificationSender : INotificationSender
@@ -264,5 +283,7 @@ namespace Cadence.Tests
             public DateTimeOffset Now { get; set; }
             public FakeClock(DateTimeOffset now) => Now = now;
         }
+
+
     }
 }

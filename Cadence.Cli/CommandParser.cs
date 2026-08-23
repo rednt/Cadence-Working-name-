@@ -15,12 +15,16 @@ namespace Cadence.Cli
             Console.WriteLine("  status                              Show current block and pending tasks");
             Console.WriteLine("  add \"Title\" --container \"Label\"    Add a task to a container");
             Console.WriteLine("  complete [Id]                       Mark a task as completed");
+            Console.WriteLine("  modify [Id] \"New Title\"            Modify a task's title");
+            Console.WriteLine("  containers                          List all containers and their pending task counts");
             Console.WriteLine();
             Console.WriteLine("Examples:");
             Console.WriteLine("  cadence status");
             Console.WriteLine("  cadence add \"Sketch layout\" --container \"Art\"");
             Console.WriteLine("  cadence add \"Read chapter 3\"                           (uses current block)");
             Console.WriteLine("  cadence complete 4");
+            Console.WriteLine("  cadence modify 4 \"Read chapter 4\"");
+            Console.WriteLine("  cadence containers");
     }
 
         public static async Task RunAsync(string[] args, IServiceProvider services)
@@ -41,6 +45,12 @@ namespace Cadence.Cli
                     break;
                 case "complete":
                     await CompleteAsync(args, services);
+                    break;
+                case "modify":
+                    await ModifyAsync(args, services);
+                    break;
+                case "containers":
+                    await ListContainersAsync(services);
                     break;
                 default:
                     Console.WriteLine($"Unknown command: {command}");
@@ -102,37 +112,37 @@ namespace Cadence.Cli
         }
 
         private static async Task CompleteAsync(string[] args, IServiceProvider services)
-{
-    var store = services.GetRequiredService<ICadenceStore>();
-    var routine = services.GetRequiredService<IRoutineSource>();
-    var clock = services.GetRequiredService<IClock>();
-
-    if (args.Length < 2 || !int.TryParse(args[1], out var taskId))
-    {
-        // No ID given: show pending tasks so the user can pick one
-        var current = routine.GetCurrentBlock(clock.Now);
-        var tasks = await store.GetTasksByContainerLabelAsync(
-            current.Block.Label, status: TaskStatusModel.Pending);
-
-        if (tasks.Count == 0)
         {
-            Console.WriteLine("No pending tasks in current block.");
-            return;
-        }
+            var store = services.GetRequiredService<ICadenceStore>();
+            var routine = services.GetRequiredService<IRoutineSource>();
+            var clock = services.GetRequiredService<IClock>();
 
-        Console.WriteLine($"Pending tasks in '{current.Block.Label}':");
-        foreach (var task in tasks)
-            Console.WriteLine($"  [{task.Id}] {task.Title}");
-        Console.WriteLine();
-        Console.WriteLine("Usage: complete [Id]");
-        return;
+            if (args.Length < 2 || !int.TryParse(args[1], out var taskId))
+            {
+                // No ID given: show pending tasks so the user can pick one
+                var current = routine.GetCurrentBlock(clock.Now);
+                var tasks = await store.GetTasksByContainerLabelAsync(
+                current.Block.Label, status: TaskStatusModel.Pending);
+
+            if (tasks.Count == 0)
+            {
+                Console.WriteLine("No pending tasks in current block.");
+                return;
+            }
+
+            Console.WriteLine($"Pending tasks in '{current.Block.Label}':");
+            foreach (var task in tasks)
+                Console.WriteLine($"  [{task.Id}] {task.Title}");
+                Console.WriteLine();
+                Console.WriteLine("Usage: complete [Id]");
+                return;
+            }
+
+            var success = await store.CompleteTaskAsync(taskId);
+            Console.WriteLine(success
+            ? $"Task {taskId} marked as completed."
+            : $"Task {taskId} not found.");
     }
-
-    var success = await store.CompleteTaskAsync(taskId);
-    Console.WriteLine(success
-        ? $"Task {taskId} marked as completed."
-        : $"Task {taskId} not found.");
-}
 
         private static string ExtractQuotedTitle(string[] args, int startIndex)
         {
@@ -153,6 +163,77 @@ namespace Cadence.Cli
             }
 
             return string.Empty;
+        }
+        private static async Task ModifyAsync(string[] args, IServiceProvider services)
+        {
+            var store = services.GetRequiredService<ICadenceStore>();
+            var routine = services.GetRequiredService<IRoutineSource>();
+            var clock = services.GetRequiredService<IClock>();
+
+            if (args.Length < 3 || !int.TryParse(args[1], out var taskId))
+            {
+                var current = routine.GetCurrentBlock(clock.Now);
+                var tasks = await store.GetTasksByContainerLabelAsync(
+                current.Block.Label, status: null);
+            
+            if (tasks.Count == 0)
+                {
+                    Console.WriteLine("No tasks in current block.");
+                    return;
+                }
+            Console.WriteLine($"Tasks in '{current.Block.Label}':");
+            foreach (var task in tasks)
+                Console.WriteLine($"  [{task.Id}] {task.Title}");
+                Console.WriteLine();
+                Console.WriteLine("Usage: modify [Id] \"New Title\"");
+                return;
+            }
+            var newTitle = ExtractQuotedTitle(args, 2);
+            var success = await store.ModifyTaskAsync(taskId, newTitle);
+            Console.WriteLine(success
+            ? $"Task {taskId} title modified to \"{newTitle}\"."
+            : $"Task {taskId} not found.");
+
+        }
+
+        private static async Task ListContainersAsync(IServiceProvider services)
+        {
+            var routine = services.GetRequiredService<IRoutineSource>();
+            var clock = services.GetRequiredService<IClock>();  
+            var blocks = routine.Blocks;
+            var store = services.GetRequiredService<ICadenceStore>();
+            var counts = await store.GetContainerTaskCountsAsync();
+            var countMap = new Dictionary<string, int>();
+            var dbLabels = counts.Select(c => c.ContainerLabel).ToHashSet();
+
+            var current = routine.GetCurrentBlock(clock.Now);
+            Console.WriteLine($"Current block: {current.Block.Label} (Cycle {current.CycleId})");
+            Console.WriteLine("Container task counts:");
+            foreach (var block in blocks)
+            {
+                var count = counts.FirstOrDefault(c => c.ContainerLabel == block.Label)?.PendingCount ?? 0;
+                var isCurrent = block.Label == current.Block.Label;
+                var pending = countMap.GetValueOrDefault(block.Label, 0);
+                var marker = isCurrent ? " <= Current Block" : "";
+                var time = block.StartTime.ToString("HH:mm");
+                Console.WriteLine($"  {block.Label} (Start: {time}) - Pending tasks: {count}{marker}");
+            }
+
+            var blockLabels = blocks.Select(b => b.Label).ToHashSet();
+            var orphans = dbLabels.Where(l => !blockLabels.Contains(l)).ToList();
+
+            if (orphans.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Orphan containers (not in routine):");
+                foreach (var orphan in orphans)
+                {
+                    var count = counts.FirstOrDefault(c => c.ContainerLabel == orphan)?.PendingCount ?? 0;
+                    Console.WriteLine($"  {orphan} - Pending tasks: {count}");
+                }
+            }       
+           
+            
         }
     }
 }

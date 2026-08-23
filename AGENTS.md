@@ -99,8 +99,18 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 | `status` | `status` | Show current block, cycle ID, and pending tasks |
 | `add` | `add "Title" --container "Label"` | Add a task (defaults to current block if no `--container`) |
 | `complete` | `complete [Id]` | Mark task as completed; shows pending tasks if no ID given |
+| `modify` | `modify [Id] "New Title"` | Modify a task's title; shows tasks if no ID given |
+| `containers` | `containers` | List all blocks with pending counts + orphan detection |
 
-Planned (Day 7): `update` (task status/priority), `containers` (block listing with pending counts + orphan detection), worker liveness heartbeat.
+Planned (Day 8+): worker liveness heartbeat.
+
+## Containers Command Design
+
+The `containers` command merges two data sources:
+- **Blocks** come from `IRoutineSource.Blocks` (in-memory, loaded from `default.json` at startup)
+- **Task counts** come from `ICadenceStore.GetContainerTaskCountsAsync()` (one SQL `GROUP BY` query)
+
+Blocks are **never** inserted into SQLite. They are Configuration as Code — the JSON file is the single source of truth. The CLI joins the two sources in memory to produce the output. Orphan detection finds task `ContainerLabel` values that don't match any block in the routine.
 
 ## Worker Liveness Pattern
 

@@ -9,5 +9,7 @@ namespace Cadence.Core.Interfaces
         Task<IReadOnlyList<TaskItem>> GetTasksByContainerLabelAsync(string containerLabel, TaskStatus? status = null, CancellationToken ct = default);
         Task LogNotificationAsync(NotificationLog log, CancellationToken ct = default);
         Task<bool> CompleteTaskAsync(int id, CancellationToken ct = default);
+        Task<bool> ModifyTaskAsync(int id, string newTitle, CancellationToken ct = default);
+        Task<IReadOnlyList<ContainerTaskCount>> GetContainerTaskCountsAsync(CancellationToken ct = default);
     }
 }
