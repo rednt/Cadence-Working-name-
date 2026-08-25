@@ -89,7 +89,7 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 ## Config vs State Separation
 
 - **`routines/default.json`** is Configuration as Code — edited in VS Code, version-controlled, defines the block schedule (times, labels, roles). Never edited by the CLI at runtime.
-- **`CadenceDB/cadence.db`** is mutable runtime state — tasks, notification logs. The CLI writes here only.
+- - **`CadenceDB/cadence.db`** is mutable runtime state — tasks, notification logs, **heartbeats**. The CLI writes here only.
 - **CLI never touches config in v1.** Hot-reload (`IOptionsMonitor` / `FileSystemWatcher`) is deferred to a future version.
 
 ## CLI Command Surface
@@ -101,6 +101,8 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 | `complete` | `complete [Id]` | Mark task as completed; shows pending tasks if no ID given |
 | `modify` | `modify [Id] "New Title"` | Modify a task's title; shows tasks if no ID given |
 | `containers` | `containers` | List all blocks with pending counts + orphan detection |
+| `start` | `start` | Launch background worker as detached process |
+| `heartbeat` | `heartbeat` | Check if worker is alive (last tick ≤ 90s ago) |
 
 Planned (Day 8+): worker liveness heartbeat.
 
@@ -114,7 +116,7 @@ Blocks are **never** inserted into SQLite. They are Configuration as Code — th
 
 ## Worker Liveness Pattern
 
-`RuleEngineWorker` logs `"Cadence Rule Engine started"` on startup. A future heartbeat will write a `Heartbeat` record to SQLite every tick, allowing an external monitor (Kubernetes liveness probe, health check endpoint) to verify the worker is alive. If no heartbeat within `2 × Interval`, the worker is considered dead.
+`RuleEngineWorker` writes a `Heartbeat` record (singleton row, `WorkerId = 1`) to SQLite every tick (30s). The CLI `heartbeat` command reads `LastTickAt` and compares against `DateTimeOffset.Now` — if ≤ 90s (3× interval), worker is alive. If no heartbeat row exists, worker has never ticked.
 
 ## Naming
 

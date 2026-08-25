@@ -1,6 +1,7 @@
 using Cadence.Core.Interfaces;
 using Cadence.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 using TaskStatusModel = Cadence.Core.Models.TaskStatus;
 
 namespace Cadence.Cli
@@ -12,11 +13,14 @@ namespace Cadence.Cli
             Console.WriteLine("Cadence CLI — Daily Routine Manager");
             Console.WriteLine();
             Console.WriteLine("Commands:");
+            Console.WriteLine("  startworker                         Start the background worker process");
             Console.WriteLine("  status                              Show current block and pending tasks");
             Console.WriteLine("  add \"Title\" --container \"Label\"    Add a task to a container");
             Console.WriteLine("  complete [Id]                       Mark a task as completed");
             Console.WriteLine("  modify [Id] \"New Title\"            Modify a task's title");
             Console.WriteLine("  containers                          List all containers and their pending task counts");
+            Console.WriteLine("  heartbeat                           Check if the worker is alive");
+
             Console.WriteLine();
             Console.WriteLine("Examples:");
             Console.WriteLine("  cadence status");
@@ -51,6 +55,12 @@ namespace Cadence.Cli
                     break;
                 case "containers":
                     await ListContainersAsync(services);
+                    break;
+                case "heartbeat":
+                    await HeartbeatAsync(services);
+                    break;
+                case "startworker":
+                    StartWorker(services);
                     break;
                 default:
                     Console.WriteLine($"Unknown command: {command}");
@@ -233,7 +243,48 @@ namespace Cadence.Cli
                 }
             }       
            
+        }
+        private static async Task HeartbeatAsync(IServiceProvider services)
+        {
+            var store = services.GetRequiredService<ICadenceStore>();
+            var clock = services.GetRequiredService<IClock>();
+
+            var lastTick = await store.GetLastHeartbeatAsync();
+            if (lastTick is null)
+            {
+                Console.WriteLine("Worker has never ticked.");
+                return;
+            }
+
+            var elapsed = clock.Now - lastTick.Value;
+            var threshold = TimeSpan.FromSeconds(90); // 3x the tick interval
             
+            if (elapsed <= threshold)
+            {
+                Console.WriteLine($"Worker is alive. Last heartbeat was {elapsed.TotalSeconds:F1} seconds ago.");
+            }
+            else
+            {
+                Console.WriteLine($"Worker is down. Last heartbeat was {elapsed.TotalSeconds:F1} seconds ago. threshold : {threshold.TotalSeconds} seconds.");
+            }
+        }
+        private static void StartWorker(IServiceProvider services)
+        {
+            var workerDll = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Cadence.Worker", "bin", "Debug", "net8.0", "Cadence.Worker.dll"));
+            if (!File.Exists(workerDll))
+            {
+                Console.WriteLine($"Worker DLL not found. Run `dotnet build` first.");
+                return;
+            }
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = workerDll,
+                WorkingDirectory = AppContext.BaseDirectory,
+                CreateNoWindow = true,
+                UseShellExecute = false
+            });
+            Console.WriteLine("Worker started.");
         }
     }
 }

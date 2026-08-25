@@ -70,6 +70,23 @@ namespace Cadence.Infrastructure.Persistence
                 })
                 .ToListAsync(ct);
         }
-
+        public async Task RecordHeartbeatAsync(DateTimeOffset timestamp, CancellationToken ct = default)
+        {
+            var _existingHeartbeat = await _db.Heartbeats.FindAsync(new object[] { 1 }, ct);
+            if (_existingHeartbeat is null)
+            {
+                _db.Heartbeats.Add(new Heartbeat { WorkerId = 1, LastTickAt = timestamp });
+            }
+            else
+            {
+                _existingHeartbeat.LastTickAt = timestamp;
+            }
+            await _db.SaveChangesAsync(ct);
+        }
+        public async Task<DateTimeOffset?> GetLastHeartbeatAsync(CancellationToken ct = default)
+        {
+            var heatbeat = await _db.Heartbeats.FindAsync(new object[] { 1 }, ct);
+            return heatbeat?.LastTickAt;
+        }
     }
 }

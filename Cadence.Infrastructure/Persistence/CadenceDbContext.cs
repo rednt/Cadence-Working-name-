@@ -7,7 +7,7 @@ namespace Cadence.Infrastructure.Persistence
     {
         public DbSet<TaskItem> Tasks => Set<TaskItem>();
         public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
-
+        public DbSet<Heartbeat> Heartbeats => Set<Heartbeat>();
         public CadenceDbContext(DbContextOptions<CadenceDbContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -17,6 +17,11 @@ namespace Cadence.Infrastructure.Persistence
             modelBuilder.Entity<TaskItem>(entity =>
             {
                 entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
+            });
+            modelBuilder.Entity<Heartbeat>().ToTable("Heartbeats");
+            modelBuilder.Entity<Heartbeat>(entity =>
+            {
+                entity.HasKey(e => e.WorkerId);
             });
         }
     }

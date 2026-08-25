@@ -265,6 +265,15 @@ namespace Cadence.Tests
                                   .ToList();
                 return Task.FromResult<IReadOnlyList<ContainerTaskCount>>(counts);
             }
+            public Task RecordHeartbeatAsync(DateTimeOffset timestamp, CancellationToken ct = default)
+            {
+                return Task.CompletedTask;
+            }
+
+            public Task<DateTimeOffset?> GetLastHeartbeatAsync(CancellationToken ct = default)
+            {
+                return Task.FromResult<DateTimeOffset?>(null);
+            }
         }
 
         private sealed class MockNotificationSender : INotificationSender
@@ -284,6 +293,6 @@ namespace Cadence.Tests
             public FakeClock(DateTimeOffset now) => Now = now;
         }
 
-
+        
     }
 }

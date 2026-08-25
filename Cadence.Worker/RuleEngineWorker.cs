@@ -1,4 +1,5 @@
 using Cadence.Core.Scheduling;
+using Cadence.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,12 +10,14 @@ namespace Cadence.Worker
 {
     private readonly RuleEngine _engine;
     private readonly ILogger<RuleEngineWorker> _logger;
+    private readonly ICadenceStore _store;
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
 
-    public RuleEngineWorker(RuleEngine engine, ILogger<RuleEngineWorker> logger)
+    public RuleEngineWorker(RuleEngine engine, ICadenceStore store, ILogger<RuleEngineWorker> logger)
     {
         _engine = engine;
         _logger = logger;
+        _store = store;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -26,6 +29,7 @@ namespace Cadence.Worker
             try
             {
                 await _engine.TickAsync(stoppingToken);
+                await _store.RecordHeartbeatAsync(DateTimeOffset.UtcNow, stoppingToken);
             }
             catch (Exception ex)
             {
