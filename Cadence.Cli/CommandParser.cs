@@ -59,7 +59,7 @@ namespace Cadence.Cli
                 case "heartbeat":
                     await HeartbeatAsync(services);
                     break;
-                case "startworker":
+                case "start":
                     StartWorker(services);
                     break;
                 default:
@@ -270,21 +270,51 @@ namespace Cadence.Cli
         }
         private static void StartWorker(IServiceProvider services)
         {
-            var workerDll = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Cadence.Worker", "bin", "Debug", "net8.0", "Cadence.Worker.dll"));
-            if (!File.Exists(workerDll))
+            var workerEXE = FindWorkerExecutable();
+            if (workerEXE is null)
             {
-                Console.WriteLine($"Worker DLL not found. Run `dotnet build` first.");
+                Console.WriteLine($"Worker executable not found. Run `dotnet build` first.");
                 return;
             }
             Process.Start(new ProcessStartInfo
             {
-                FileName = "dotnet",
-                Arguments = workerDll,
-                WorkingDirectory = AppContext.BaseDirectory,
-                CreateNoWindow = true,
-                UseShellExecute = false
+                FileName = workerEXE,
+                UseShellExecute = true,
+                CreateNoWindow = false
             });
-            Console.WriteLine("Worker started.");
+            Console.WriteLine($"Worker started.");
+        }
+        private static string? FindWorkerExecutable()
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            for(int i = 0; i < 10; i++)
+            {
+                if (dir == null) break;
+                var slnPath = Path.Combine(dir.FullName, "Cadence.sln");
+                if (File.Exists(slnPath))
+                {
+                    var workerBinDir = Path.Combine(dir.FullName, "Cadence.Worker", "bin");
+                    if (Directory.Exists(workerBinDir))
+                    {
+                        var exe = Directory.GetFiles(workerBinDir, "Cadence.Worker.dll", SearchOption.AllDirectories)
+                            .FirstOrDefault();
+                        if (exe is not null)
+                        {
+                            return exe;
+                        }
+                    }
+                    var workerDll = Directory.GetFiles(dir.FullName, "Cadence.Worker.dll", SearchOption.AllDirectories)
+                        .FirstOrDefault();
+                    if (workerDll is not null)
+                    {
+                        return workerDll;
+                    }
+                    break;
+                }
+                dir = dir.Parent;
+            }
+
+            return null;
         }
     }
 }
