@@ -18,13 +18,17 @@ using  (var scope = host.Services.CreateScope())
     dbContext.Database.EnsureCreated();
 }
 
-var pidPath = Path.Combine(AppContext.BaseDirectory, "CadenceDB", "worker.pid");
+var pidPath = Path.Combine(ServiceCollectionExtensions.GetCadenceDbDirectory(), "worker.pid");
 Directory.CreateDirectory(Path.GetDirectoryName(pidPath)!);
 File.WriteAllText(pidPath, Process.GetCurrentProcess().Id.ToString());
 
 try
 {
     host.Run();
+}
+catch (OperationCanceledException)
+{
+    // Expected on Ctrl+C shutdown
 }
 finally
 {

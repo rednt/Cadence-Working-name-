@@ -1,5 +1,6 @@
 using Cadence.Core.Interfaces;
 using Cadence.Core.Models;
+using Cadence.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using TaskStatusModel = Cadence.Core.Models.TaskStatus;
@@ -13,7 +14,8 @@ namespace Cadence.Cli
             Console.WriteLine("Cadence CLI — Daily Routine Manager");
             Console.WriteLine();
             Console.WriteLine("Commands:");
-            Console.WriteLine("  startworker                         Start the background worker process");
+            Console.WriteLine("  start                         Start the background worker process");
+            Console.WriteLine("  stop                          Stop the background worker process");
             Console.WriteLine("  status                              Show current block and pending tasks");
             Console.WriteLine("  add \"Title\" --container \"Label\"    Add a task to a container");
             Console.WriteLine("  complete [Id]                       Mark a task as completed");
@@ -61,6 +63,9 @@ namespace Cadence.Cli
                     break;
                 case "start":
                     StartWorker(services);
+                    break;
+                case "stop":
+                    StopWorker(services);
                     break;
                 default:
                     Console.WriteLine($"Unknown command: {command}");
@@ -213,7 +218,6 @@ namespace Cadence.Cli
             var blocks = routine.Blocks;
             var store = services.GetRequiredService<ICadenceStore>();
             var counts = await store.GetContainerTaskCountsAsync();
-            var countMap = new Dictionary<string, int>();
             var dbLabels = counts.Select(c => c.ContainerLabel).ToHashSet();
 
             var current = routine.GetCurrentBlock(clock.Now);
@@ -223,7 +227,6 @@ namespace Cadence.Cli
             {
                 var count = counts.FirstOrDefault(c => c.ContainerLabel == block.Label)?.PendingCount ?? 0;
                 var isCurrent = block.Label == current.Block.Label;
-                var pending = countMap.GetValueOrDefault(block.Label, 0);
                 var marker = isCurrent ? " <= Current Block" : "";
                 var time = block.StartTime.ToString("HH:mm");
                 Console.WriteLine($"  {block.Label} (Start: {time}) - Pending tasks: {count}{marker}");
@@ -270,51 +273,83 @@ namespace Cadence.Cli
         }
         private static void StartWorker(IServiceProvider services)
         {
-            var workerEXE = FindWorkerExecutable();
-            if (workerEXE is null)
+            var workerProjectPath = FindWorkerProject();
+            if (workerProjectPath is null)
             {
-                Console.WriteLine($"Worker executable not found. Run `dotnet build` first.");
+                Console.WriteLine("Worker project not found.");
                 return;
             }
-            Process.Start(new ProcessStartInfo
+            
+            var processStartInfo = new ProcessStartInfo
             {
-                FileName = workerEXE,
-                UseShellExecute = true,
-                CreateNoWindow = false
-            });
-            Console.WriteLine($"Worker started.");
+                FileName = "dotnet",
+                UseShellExecute = false,
+                
+                CreateNoWindow = false,
+                WorkingDirectory = Path.GetDirectoryName(workerProjectPath)
+            };
+
+            processStartInfo.ArgumentList.Add("run");
+            processStartInfo.ArgumentList.Add("--project");
+            processStartInfo.ArgumentList.Add(workerProjectPath);
+            Process.Start(processStartInfo);
+            Console.WriteLine("Worker process started.");
         }
-        private static string? FindWorkerExecutable()
+
+        private static void StopWorker(IServiceProvider services)
+        {
+            var pidPath = Path.Combine(ServiceCollectionExtensions.GetCadenceDbDirectory(), "worker.pid");
+            if (!File.Exists(pidPath))
+            {
+                Console.WriteLine("Worker is not running (no PID file).");
+                return;
+            }
+
+            var pidText = File.ReadAllText(pidPath);
+            if (!int.TryParse(pidText, out var pid))
+            {
+                Console.WriteLine("Invalid PID file. Cleaning up.");
+                File.Delete(pidPath);
+                return;
+            }
+
+            try
+            {
+                var proc = Process.GetProcessById(pid);
+                proc.Kill();
+                Console.WriteLine($"Worker stopped (PID {pid}).");
+            }
+            catch (ArgumentException)
+            {
+                Console.WriteLine($"Worker process {pid} not found (already stopped).");
+            }
+            finally
+            {
+                if (File.Exists(pidPath))
+                    File.Delete(pidPath);
+            }
+        }
+
+        private static string? FindWorkerProject()
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            for(int i = 0; i < 10; i++)
+            for (int i = 0; i < 10; i++)
             {
                 if (dir == null) break;
+
                 var slnPath = Path.Combine(dir.FullName, "Cadence.sln");
                 if (File.Exists(slnPath))
-                {
-                    var workerBinDir = Path.Combine(dir.FullName, "Cadence.Worker", "bin");
-                    if (Directory.Exists(workerBinDir))
                     {
-                        var exe = Directory.GetFiles(workerBinDir, "Cadence.Worker.dll", SearchOption.AllDirectories)
-                            .FirstOrDefault();
-                        if (exe is not null)
-                        {
-                            return exe;
-                        }
+                        var csproj = Path.Combine(dir.FullName, "Cadence.Worker", "Cadence.Worker.csproj");
+                        return File.Exists(csproj) ? csproj : null;
                     }
-                    var workerDll = Directory.GetFiles(dir.FullName, "Cadence.Worker.dll", SearchOption.AllDirectories)
-                        .FirstOrDefault();
-                    if (workerDll is not null)
-                    {
-                        return workerDll;
-                    }
-                    break;
-                }
+
                 dir = dir.Parent;
             }
 
             return null;
         }
+
+
     }
 }

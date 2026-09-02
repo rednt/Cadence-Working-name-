@@ -14,7 +14,7 @@ namespace Cadence.Infrastructure
         {
             services.AddSingleton<CadenceDbContext>(sp =>
             {
-                var dbPath = Path.Combine(AppContext.BaseDirectory, "CadenceDB", "cadence.db");
+                var dbPath = Path.Combine(GetCadenceDbDirectory(), "cadence.db");
                 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
                 var options = new DbContextOptionsBuilder<CadenceDbContext>()
                     .UseSqlite($"Data Source={dbPath}")
@@ -33,6 +33,18 @@ namespace Cadence.Infrastructure
             services.AddSingleton<IClock>(sp => new SystemClock());
 
             return services;
+        }
+        public  static string GetCadenceDbDirectory()
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            for (int i = 0; i < 10; i++)
+            {
+                if (dir is null) break;
+                if (File.Exists(Path.Combine(dir.FullName, "Cadence.sln")))
+                return Path.Combine(dir.FullName, "CadenceDB");
+                dir = dir.Parent;
+            }
+            return Path.Combine(AppContext.BaseDirectory, "CadenceDB");
         }
     }
 }

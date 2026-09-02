@@ -26,7 +26,7 @@ No linter, formatter, or CI config exists. No codegen or migrations yet.
 | `Cadence.Core` | Domain models, interfaces, scheduling logic | None |
 | `Cadence.Infrastructure` | EF Core SQLite persistence, JSON routine loading | Core |
 | `Cadence.Worker` | Background service, RuleEngine host, DI wiring | Core, Infrastructure |
-| `Cadence.Cli` | Interactive CLI (`status`, `add`, `complete`) | Core, Infrastructure |
+| `Cadence.Cli` | Interactive CLI (`status`, `add`, `complete`, `start`, `stop`, `heartbeat`) | Core, Infrastructure |
 | `Cadence.Tests` | xUnit tests | Core, Infrastructure |
 
 All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUsings>enable</ImplicitUsings>`.
@@ -89,7 +89,7 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 ## Config vs State Separation
 
 - **`routines/default.json`** is Configuration as Code — edited in VS Code, version-controlled, defines the block schedule (times, labels, roles). Never edited by the CLI at runtime.
-- - **`CadenceDB/cadence.db`** is mutable runtime state — tasks, notification logs, **heartbeats**. The CLI writes here only.
+- **`CadenceDB/cadence.db`** is mutable runtime state — tasks, notification logs, **heartbeats**. The CLI writes here only.
 - **CLI never touches config in v1.** Hot-reload (`IOptionsMonitor` / `FileSystemWatcher`) is deferred to a future version.
 
 ## CLI Command Surface
@@ -101,10 +101,9 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 | `complete` | `complete [Id]` | Mark task as completed; shows pending tasks if no ID given |
 | `modify` | `modify [Id] "New Title"` | Modify a task's title; shows tasks if no ID given |
 | `containers` | `containers` | List all blocks with pending counts + orphan detection |
-| `start` | `start` | Launch background worker as detached process |
+| `start` | `start` | Launch background worker as attached child process |
+| `stop` | `stop` | Kill background worker via PID file |
 | `heartbeat` | `heartbeat` | Check if worker is alive (last tick ≤ 90s ago) |
-
-Planned (Day 8+): worker liveness heartbeat.
 
 ## Containers Command Design
 
@@ -117,6 +116,17 @@ Blocks are **never** inserted into SQLite. They are Configuration as Code — th
 ## Worker Liveness Pattern
 
 `RuleEngineWorker` writes a `Heartbeat` record (singleton row, `WorkerId = 1`) to SQLite every tick (30s). The CLI `heartbeat` command reads `LastTickAt` and compares against `DateTimeOffset.Now` — if ≤ 90s (3× interval), worker is alive. If no heartbeat row exists, worker has never ticked.
+
+## Worker Process Model
+
+- **`cadence start`** launches `Cadence.Worker` via `dotnet run --project` as an attached child process (`CreateNoWindow = false`). Worker gets its own console window.
+- **`cadence stop`** reads `CadenceDB/worker.pid`, calls `Process.Kill()`, deletes PID file.
+- **Ctrl+C** in the Worker's console window triggers graceful shutdown via Generic Host cancellation. `OperationCanceledException` is caught; PID file deleted in `finally` block.
+- **Terminal close** kills the Worker's console window.
+
+## Shared CadenceDB
+
+Both CLI and Worker share a single `CadenceDB/` directory at the solution root. `ServiceCollectionExtensions.GetCadenceDbDirectory()` walks up from `AppContext.BaseDirectory` to find `Cadence.sln`, then returns `CadenceDB/` relative to it. This ensures both processes read/write the same `cadence.db` and `worker.pid` files.
 
 ## Naming
 
