@@ -37,7 +37,7 @@ namespace Cadence.Tests
         public void CycleId_RollsOverAtWake_NotAtMidnight()
         {
             var clock = BuildClock();
-            var evening   = clock.GetCurrentBlock(At(18, 23, 0));  // Gaming, Mon
+            var evening = clock.GetCurrentBlock(At(18, 23, 0));  // Gaming, Mon
             var lateNight = clock.GetCurrentBlock(At(19, 1, 0));   // Art, Tue 01:00
             var afterWake = clock.GetCurrentBlock(At(19, 13, 0));  // Work, Tue
 

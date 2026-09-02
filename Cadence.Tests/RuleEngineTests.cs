@@ -293,6 +293,6 @@ namespace Cadence.Tests
             public FakeClock(DateTimeOffset now) => Now = now;
         }
 
-        
+
     }
 }

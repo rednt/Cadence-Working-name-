@@ -8,7 +8,7 @@ namespace Cadence.Infrastructure.Routines
     {
         private sealed class RoutineFileDto
         {
-            public string? Profile { get; set;} 
+            public string? Profile { get; set; }
             public List<BlockDto>? Blocks { get; set; }
         }
         private sealed class BlockDto
@@ -21,7 +21,7 @@ namespace Cadence.Infrastructure.Routines
         private static readonly JsonSerializerOptions _options = new()
         {
             PropertyNameCaseInsensitive = true,
-            Converters = { new JsonStringEnumConverter<BlockRole>(JsonNamingPolicy.CamelCase, allowIntegerValues: false ) }
+            Converters = { new JsonStringEnumConverter<BlockRole>(JsonNamingPolicy.CamelCase, allowIntegerValues: false) }
         };
 
         public IReadOnlyList<Block> Parse(string json)
@@ -35,18 +35,18 @@ namespace Cadence.Infrastructure.Routines
             var blocks = dto.Blocks.Select(b => new Block(
             TimeOnly.Parse(b.Time ?? throw new InvalidOperationException("Block time is missing."), CultureInfo.InvariantCulture),
             b.Label ?? string.Empty,
-            b.Role ?? BlockRole.Unspecified)).ToList();          
+            b.Role ?? BlockRole.Unspecified)).ToList();
 
             var duplicate = blocks.GroupBy(b => b.StartTime).FirstOrDefault(g => g.Count() > 1);
-            if (duplicate is not null)                               
+            if (duplicate is not null)
             {
                 throw new InvalidOperationException($"Duplicate block start time '{duplicate.Key:HH:mm}' - start times must be unique.");
-            }   
+            }
 
-            return blocks;                                           
+            return blocks;
         }
-        public IReadOnlyList<Block> Load(string path)=> Parse(File.ReadAllText(path));
-        
+        public IReadOnlyList<Block> Load(string path) => Parse(File.ReadAllText(path));
+
     }
-    
-}   
+
+}

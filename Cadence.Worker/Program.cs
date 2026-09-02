@@ -12,7 +12,7 @@ builder.Services.AddHostedService<RuleEngineWorker>();
 
 var host = builder.Build();
 
-using  (var scope = host.Services.CreateScope())
+using (var scope = host.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<CadenceDbContext>();
     dbContext.Database.EnsureCreated();

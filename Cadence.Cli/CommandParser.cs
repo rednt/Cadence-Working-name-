@@ -10,7 +10,7 @@ namespace Cadence.Cli
     public class CommandParser
     {
         private static void PrintHelp()
-    {
+        {
             Console.WriteLine("Cadence CLI — Daily Routine Manager");
             Console.WriteLine();
             Console.WriteLine("Commands:");
@@ -31,7 +31,7 @@ namespace Cadence.Cli
             Console.WriteLine("  cadence complete 4");
             Console.WriteLine("  cadence modify 4 \"Read chapter 4\"");
             Console.WriteLine("  cadence containers");
-    }
+        }
 
         public static async Task RunAsync(string[] args, IServiceProvider services)
         {
@@ -40,7 +40,7 @@ namespace Cadence.Cli
                 PrintHelp();
                 return;
             }
-            var command = args[0].ToLower();    
+            var command = args[0].ToLower();
             switch (command)
             {
                 case "status":
@@ -84,7 +84,8 @@ namespace Cadence.Cli
             Console.WriteLine($"Started at: {current.Block.StartTime:HH:mm}");
 
             var tasks = await store.GetTasksByContainerLabelAsync(current.Block.Label, null);
-            if (tasks.Count == 0){
+            if (tasks.Count == 0)
+            {
                 Console.WriteLine("No pending tasks for this block.");
             }
             else
@@ -114,7 +115,7 @@ namespace Cadence.Cli
                 var current = routine.GetCurrentBlock(clock.Now);
                 container = current.Block.Label;
             }
-            
+
             var task = new TaskItem
             {
                 Title = title,
@@ -139,15 +140,15 @@ namespace Cadence.Cli
                 var tasks = await store.GetTasksByContainerLabelAsync(
                 current.Block.Label, status: TaskStatusModel.Pending);
 
-            if (tasks.Count == 0)
-            {
-                Console.WriteLine("No pending tasks in current block.");
-                return;
-            }
+                if (tasks.Count == 0)
+                {
+                    Console.WriteLine("No pending tasks in current block.");
+                    return;
+                }
 
-            Console.WriteLine($"Pending tasks in '{current.Block.Label}':");
-            foreach (var task in tasks)
-                Console.WriteLine($"  [{task.Id}] {task.Title}");
+                Console.WriteLine($"Pending tasks in '{current.Block.Label}':");
+                foreach (var task in tasks)
+                    Console.WriteLine($"  [{task.Id}] {task.Title}");
                 Console.WriteLine();
                 Console.WriteLine("Usage: complete [Id]");
                 return;
@@ -157,7 +158,7 @@ namespace Cadence.Cli
             Console.WriteLine(success
             ? $"Task {taskId} marked as completed."
             : $"Task {taskId} not found.");
-    }
+        }
 
         private static string ExtractQuotedTitle(string[] args, int startIndex)
         {
@@ -190,15 +191,15 @@ namespace Cadence.Cli
                 var current = routine.GetCurrentBlock(clock.Now);
                 var tasks = await store.GetTasksByContainerLabelAsync(
                 current.Block.Label, status: null);
-            
-            if (tasks.Count == 0)
+
+                if (tasks.Count == 0)
                 {
                     Console.WriteLine("No tasks in current block.");
                     return;
                 }
-            Console.WriteLine($"Tasks in '{current.Block.Label}':");
-            foreach (var task in tasks)
-                Console.WriteLine($"  [{task.Id}] {task.Title}");
+                Console.WriteLine($"Tasks in '{current.Block.Label}':");
+                foreach (var task in tasks)
+                    Console.WriteLine($"  [{task.Id}] {task.Title}");
                 Console.WriteLine();
                 Console.WriteLine("Usage: modify [Id] \"New Title\"");
                 return;
@@ -214,7 +215,7 @@ namespace Cadence.Cli
         private static async Task ListContainersAsync(IServiceProvider services)
         {
             var routine = services.GetRequiredService<IRoutineSource>();
-            var clock = services.GetRequiredService<IClock>();  
+            var clock = services.GetRequiredService<IClock>();
             var blocks = routine.Blocks;
             var store = services.GetRequiredService<ICadenceStore>();
             var counts = await store.GetContainerTaskCountsAsync();
@@ -244,8 +245,8 @@ namespace Cadence.Cli
                     var count = counts.FirstOrDefault(c => c.ContainerLabel == orphan)?.PendingCount ?? 0;
                     Console.WriteLine($"  {orphan} - Pending tasks: {count}");
                 }
-            }       
-           
+            }
+
         }
         private static async Task HeartbeatAsync(IServiceProvider services)
         {
@@ -261,7 +262,7 @@ namespace Cadence.Cli
 
             var elapsed = clock.Now - lastTick.Value;
             var threshold = TimeSpan.FromSeconds(90); // 3x the tick interval
-            
+
             if (elapsed <= threshold)
             {
                 Console.WriteLine($"Worker is alive. Last heartbeat was {elapsed.TotalSeconds:F1} seconds ago.");
@@ -279,12 +280,12 @@ namespace Cadence.Cli
                 Console.WriteLine("Worker project not found.");
                 return;
             }
-            
+
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
                 UseShellExecute = false,
-                
+
                 CreateNoWindow = false,
                 WorkingDirectory = Path.GetDirectoryName(workerProjectPath)
             };
@@ -339,10 +340,10 @@ namespace Cadence.Cli
 
                 var slnPath = Path.Combine(dir.FullName, "Cadence.sln");
                 if (File.Exists(slnPath))
-                    {
-                        var csproj = Path.Combine(dir.FullName, "Cadence.Worker", "Cadence.Worker.csproj");
-                        return File.Exists(csproj) ? csproj : null;
-                    }
+                {
+                    var csproj = Path.Combine(dir.FullName, "Cadence.Worker", "Cadence.Worker.csproj");
+                    return File.Exists(csproj) ? csproj : null;
+                }
 
                 dir = dir.Parent;
             }

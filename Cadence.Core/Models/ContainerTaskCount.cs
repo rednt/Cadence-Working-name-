@@ -6,7 +6,7 @@ namespace Cadence.Core.Models
         public int PendingCount { get; set; }
 
         public ContainerTaskCount() { }
-        
+
         public ContainerTaskCount(string containerLabel, int pendingCount)
         {
             ContainerLabel = containerLabel;

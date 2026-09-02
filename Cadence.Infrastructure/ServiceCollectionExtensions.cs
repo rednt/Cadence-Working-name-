@@ -34,14 +34,14 @@ namespace Cadence.Infrastructure
 
             return services;
         }
-        public  static string GetCadenceDbDirectory()
+        public static string GetCadenceDbDirectory()
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
             for (int i = 0; i < 10; i++)
             {
                 if (dir is null) break;
                 if (File.Exists(Path.Combine(dir.FullName, "Cadence.sln")))
-                return Path.Combine(dir.FullName, "CadenceDB");
+                    return Path.Combine(dir.FullName, "CadenceDB");
                 dir = dir.Parent;
             }
             return Path.Combine(AppContext.BaseDirectory, "CadenceDB");

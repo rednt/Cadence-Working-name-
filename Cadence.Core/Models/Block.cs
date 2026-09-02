@@ -7,7 +7,7 @@ namespace Cadence.Core.Models
         public string Label { get; set; } = string.Empty;
         public BlockRole Role { get; set; } = BlockRole.Unspecified;
 
-        public Block(){}
+        public Block() { }
         public Block(TimeOnly startTime, string label, BlockRole role)
         {
             StartTime = startTime;

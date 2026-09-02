@@ -10,7 +10,7 @@ namespace Cadence.Core.Scheduling
         private readonly ICadenceStore _cadenceStore;
         private readonly INotificationSender _notificationSender;
         private readonly IClock _clock;
-        
+
         private string? _lastBlockLabel;
         private int _lastCycleId;
         private bool _initialized;
@@ -41,7 +41,7 @@ namespace Cadence.Core.Scheduling
             bool blockChanged = currentBlockLabel != _lastBlockLabel;
             bool cycleRolled = currentCycleId != _lastCycleId;
 
-            
+
             _lastBlockLabel = currentBlockLabel;
             _lastCycleId = currentCycleId;
 
@@ -50,14 +50,14 @@ namespace Cadence.Core.Scheduling
 
             var pendingTasks = await _cadenceStore.GetTasksByContainerLabelAsync(currentBlockLabel, status: TaskStatus.Pending, ct);
             string message = $"Entering '{currentBlockLabel}'. {pendingTasks.Count} tasks are pending.";
-            
-            
+
+
             await _notificationSender.SendAsync(NotificationType.BlockTransition, message, ct);
-            await _cadenceStore.LogNotificationAsync(new NotificationLog 
-            { 
-                Type = NotificationType.BlockTransition, 
-                CycleId = currentCycleId, 
-                FiredAt = now 
+            await _cadenceStore.LogNotificationAsync(new NotificationLog
+            {
+                Type = NotificationType.BlockTransition,
+                CycleId = currentCycleId,
+                FiredAt = now
             }, ct);
 
             if (pendingTasks.Count > 0)
@@ -65,21 +65,21 @@ namespace Cadence.Core.Scheduling
                 var taskList = string.Join(", ", pendingTasks.Select(t => t.Title));
                 var taskMessage = $"Tasks for '{currentBlockLabel}': {taskList}";
                 await _notificationSender.SendAsync(NotificationType.TaskSurfaced, taskMessage, ct);
-                await _cadenceStore.LogNotificationAsync(new NotificationLog 
-                { 
-                    Type = NotificationType.TaskSurfaced, 
-                    CycleId = currentCycleId, 
-                    FiredAt = now 
+                await _cadenceStore.LogNotificationAsync(new NotificationLog
+                {
+                    Type = NotificationType.TaskSurfaced,
+                    CycleId = currentCycleId,
+                    FiredAt = now
                 }, ct);
             }
 
             if (cycleRolled)
             {
-                await _cadenceStore.LogNotificationAsync(new NotificationLog 
-                { 
-                    Type = NotificationType.CycleRoll, 
-                    CycleId = currentCycleId, 
-                    FiredAt = now 
+                await _cadenceStore.LogNotificationAsync(new NotificationLog
+                {
+                    Type = NotificationType.CycleRoll,
+                    CycleId = currentCycleId,
+                    FiredAt = now
                 }, ct);
             }
         }
