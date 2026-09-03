@@ -261,7 +261,7 @@ namespace Cadence.Cli
             }
 
             var elapsed = clock.Now - lastTick.Value;
-            var threshold = TimeSpan.FromSeconds(90); // 3x the tick interval
+            var threshold = TimeSpan.FromSeconds(33); // +3 the tick interval
 
             if (elapsed <= threshold)
             {

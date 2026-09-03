@@ -1,0 +1,1 @@
+@dotnet run --project "%~dp0Cadence.Cli\Cadence.Cli.csproj" -- %*
