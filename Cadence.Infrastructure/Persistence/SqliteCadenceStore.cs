@@ -47,14 +47,21 @@ namespace Cadence.Infrastructure.Persistence
             return true;
         }
 
-        public async Task<bool> ModifyTaskAsync(int id, string newTitle, CancellationToken ct = default)
+        public async Task<bool> ModifyTaskAsync(int id, string? newTitle = null, TaskPriority? newPriority = null, CancellationToken ct = default)
         {
             var task = await _db.Tasks.FindAsync(new object[] { id }, ct);
             if (task is null)
             {
                 return false;
             }
-            task.Title = newTitle;
+            if (newTitle is not null)
+            {
+                task.Title = newTitle;
+            }
+            if (newPriority is not null)
+            {
+                task.Priority = newPriority.Value;
+            }
             await _db.SaveChangesAsync(ct);
             return true;
         }
@@ -87,6 +94,17 @@ namespace Cadence.Infrastructure.Persistence
         {
             var heatbeat = await _db.Heartbeats.FindAsync(new object[] { 1 }, ct);
             return heatbeat?.LastTickAt;
+        }
+        public async Task<bool> DeleteTaskAsync(int id, CancellationToken ct = default)
+        {
+            var task = await _db.Tasks.FindAsync(new object[] { id}, ct);
+            if (task is null)
+            {
+                return false;
+            }
+            _db.Tasks.Remove(task);
+            await _db.SaveChangesAsync(ct);
+            return true;
         }
     }
 }

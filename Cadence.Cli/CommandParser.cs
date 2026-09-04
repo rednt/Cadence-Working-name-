@@ -17,19 +17,24 @@ namespace Cadence.Cli
             Console.WriteLine("  start                         Start the background worker process");
             Console.WriteLine("  stop                          Stop the background worker process");
             Console.WriteLine("  status                              Show current block and pending tasks");
-            Console.WriteLine("  add \"Title\" --container \"Label\"    Add a task to a container");
+            Console.WriteLine("  add \"Title\" --container \"Label\" --priority [Priority]    Add a task to a container");
             Console.WriteLine("  complete [Id]                       Mark a task as completed");
-            Console.WriteLine("  modify [Id] \"New Title\"            Modify a task's title");
+            Console.WriteLine("  modify [Id] \"New Title\" --priority [Priority]   Modify a task's title and/or priority");
             Console.WriteLine("  containers                          List all containers and their pending task counts");
             Console.WriteLine("  heartbeat                           Check if the worker is alive");
+            Console.WriteLine("  delete [Id]                         Delete a task by its ID");
 
             Console.WriteLine();
             Console.WriteLine("Examples:");
             Console.WriteLine("  cadence status");
             Console.WriteLine("  cadence add \"Sketch layout\" --container \"Art\"");
             Console.WriteLine("  cadence add \"Read chapter 3\"                           (uses current block)");
+            Console.WriteLine("  cadence add \"Urgent task\" --priority High");
             Console.WriteLine("  cadence complete 4");
             Console.WriteLine("  cadence modify 4 \"Read chapter 4\"");
+            Console.WriteLine("  cadence modify 4 --priority High");
+            Console.WriteLine("  cadence modify 4 \"Read chapter 4\" --priority High");
+            Console.WriteLine("  cadence delete 4");
             Console.WriteLine("  cadence containers");
         }
 
@@ -67,6 +72,9 @@ namespace Cadence.Cli
                 case "stop":
                     StopWorker(services);
                     break;
+                case "delete":
+                    await DeleteAsync(args, services);
+                    break;
                 default:
                     Console.WriteLine($"Unknown command: {command}");
                     PrintHelp();
@@ -83,15 +91,31 @@ namespace Cadence.Cli
             Console.WriteLine($"Current block: {current.Block.Label} (Cycle {current.CycleId})");
             Console.WriteLine($"Started at: {current.Block.StartTime:HH:mm}");
 
-            var tasks = await store.GetTasksByContainerLabelAsync(current.Block.Label, null);
-            if (tasks.Count == 0)
+            var pendingTasks = await store.GetTasksByContainerLabelAsync(
+                current.Block.Label, status: TaskStatusModel.Pending);
+            var completedTasks = await store.GetTasksByContainerLabelAsync(
+                current.Block.Label, status: TaskStatusModel.Completed);
+            if (pendingTasks.Count == 0)
             {
                 Console.WriteLine("No pending tasks for this block.");
+                if (completedTasks.Count > 0)
+                {
+                    Console.WriteLine("Completed tasks:");
+                    foreach (var task in completedTasks)
+                    {
+                        Console.WriteLine($"  [{task.Id}] {task.Title} (Priority: {task.Priority})");
+                    }
+                }
             }
             else
             {
-                Console.WriteLine("Pending tasks:");
-                foreach (var task in tasks)
+                Console.WriteLine("Current tasks:");
+                foreach (var task in pendingTasks)
+                {
+                    Console.WriteLine($"  [{task.Id}] {task.Title} (Priority: {task.Priority})");
+                }
+                Console.WriteLine("Completed tasks:");
+                foreach (var task in completedTasks)
                 {
                     Console.WriteLine($"  [{task.Id}] {task.Title} (Priority: {task.Priority})");
                 }
@@ -108,7 +132,19 @@ namespace Cadence.Cli
             var clock = services.GetRequiredService<IClock>();
 
             var title = ExtractQuotedTitle(args, 1);
-            var container = ExtractContainerLabel(args, "--container");
+            var container = ExtractFlagValue(args, "--container");
+            var priorityText = ExtractFlagValue(args, "--priority");
+            var hasPriorityFlag = args.Any(arg => arg.Equals("--priority", StringComparison.OrdinalIgnoreCase));
+            var priority = TaskPriority.Normal;
+
+            if (hasPriorityFlag &&
+                (string.IsNullOrWhiteSpace(priorityText) ||
+                !Enum.TryParse(priorityText, ignoreCase: true, out priority)))
+            {
+                Console.WriteLine($"Invalid priority '{priorityText}'. Valid priorities: Low, Normal, High.");
+                Console.WriteLine("Usage: add \"Title\" --container \"Label\" --priority [Priority]");
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(container))
             {
@@ -121,7 +157,7 @@ namespace Cadence.Cli
                 Title = title,
                 ContainerLabel = container,
                 Status = TaskStatusModel.Pending,
-                Priority = TaskPriority.Normal
+                Priority = priority
             };
             var addedTask = await store.AddTaskAsync(task);
             Console.WriteLine($"Added task [{addedTask.Id}] \"{addedTask.Title}\" to container \"{addedTask.ContainerLabel}\".");
@@ -148,7 +184,7 @@ namespace Cadence.Cli
 
                 Console.WriteLine($"Pending tasks in '{current.Block.Label}':");
                 foreach (var task in tasks)
-                    Console.WriteLine($"  [{task.Id}] {task.Title}");
+                    Console.WriteLine($"  [{task.Id}] {task.Title} (Priority: {task.Priority})");
                 Console.WriteLine();
                 Console.WriteLine("Usage: complete [Id]");
                 return;
@@ -167,12 +203,14 @@ namespace Cadence.Cli
                 return string.Empty;
             }
 
-            var title = string.Join(" ", args.Skip(startIndex).TakeWhile(arg => !arg.Equals("--container", StringComparison.OrdinalIgnoreCase)));
+            var title = string.Join(" ", args.Skip(startIndex).TakeWhile(arg =>
+                !arg.Equals("--container", StringComparison.OrdinalIgnoreCase) &&
+                !arg.Equals("--priority", StringComparison.OrdinalIgnoreCase)));
             return title.Trim().Trim('"');
         }
-        private static string ExtractContainerLabel(string[] args, string flag)
+        private static string ExtractFlagValue(string[] args, string flag)
         {
-            var flagIndex = Array.IndexOf(args, flag);
+            var flagIndex = Array.FindIndex(args, arg => arg.Equals(flag, StringComparison.OrdinalIgnoreCase));
             if (flagIndex >= 0 && flagIndex < args.Length - 1)
             {
                 return args[flagIndex + 1];
@@ -186,7 +224,7 @@ namespace Cadence.Cli
             var routine = services.GetRequiredService<IRoutineSource>();
             var clock = services.GetRequiredService<IClock>();
 
-            if (args.Length < 3 || !int.TryParse(args[1], out var taskId))
+            if (args.Length < 2 || !int.TryParse(args[1], out var taskId))
             {
                 var current = routine.GetCurrentBlock(clock.Now);
                 var tasks = await store.GetTasksByContainerLabelAsync(
@@ -199,15 +237,36 @@ namespace Cadence.Cli
                 }
                 Console.WriteLine($"Tasks in '{current.Block.Label}':");
                 foreach (var task in tasks)
-                    Console.WriteLine($"  [{task.Id}] {task.Title}");
+                    Console.WriteLine($"  [{task.Id}] {task.Title} (Priority: {task.Priority})");
                 Console.WriteLine();
-                Console.WriteLine("Usage: modify [Id] \"New Title\"");
+                Console.WriteLine("Usage: modify [Id] \"New Title\" (optional) --priority [Priority]");
                 return;
             }
             var newTitle = ExtractQuotedTitle(args, 2);
-            var success = await store.ModifyTaskAsync(taskId, newTitle);
+            var priorityText = ExtractFlagValue(args, "--priority");
+            TaskPriority? newPriority = null;
+            var parsedPriority = default(TaskPriority);
+            var hasPriorityFlag = args.Any(arg => arg.Equals("--priority", StringComparison.OrdinalIgnoreCase));
+            if (hasPriorityFlag &&
+                (string.IsNullOrWhiteSpace(priorityText) ||
+                !Enum.TryParse(priorityText, ignoreCase: true, out parsedPriority)))
+            {
+                Console.WriteLine($"Invalid priority '{priorityText}'. Valid priorities: Low, Normal, High.");
+                Console.WriteLine("Usage: modify [Id] \"New Title\" --priority [Priority]");
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(priorityText))
+            {
+                newPriority = parsedPriority;
+            }
+
+            var success = await store.ModifyTaskAsync(
+                taskId,
+                string.IsNullOrWhiteSpace(newTitle) ? null : newTitle,
+                newPriority);
             Console.WriteLine(success
-            ? $"Task {taskId} title modified to \"{newTitle}\"."
+            ? $"Task {taskId} modified."
             : $"Task {taskId} not found.");
 
         }
@@ -350,7 +409,38 @@ namespace Cadence.Cli
 
             return null;
         }
+        private static async Task DeleteAsync(string[] args, IServiceProvider services)
+        {
+            var store = services.GetRequiredService<ICadenceStore>();
 
+            var routine = services.GetRequiredService<IRoutineSource>();
+            var clock = services.GetRequiredService<IClock>();
 
+            if (args.Length < 2 || !int.TryParse(args[1], out var taskId))
+            {
+                // No ID given: show tasks so the user can pick one
+                var current = routine.GetCurrentBlock(clock.Now);
+                var tasks = await store.GetTasksByContainerLabelAsync(
+                current.Block.Label);
+
+                if (tasks.Count == 0)
+                {
+                    Console.WriteLine("No tasks in current block.");
+                    return;
+                }
+
+                Console.WriteLine($"Tasks in '{current.Block.Label}':");
+                foreach (var task in tasks)
+                    Console.WriteLine($"  [{task.Id}] {task.Title}");
+                Console.WriteLine();
+                Console.WriteLine("Usage: complete [Id]");
+                return;
+            }
+
+            var success = await store.DeleteTaskAsync(taskId);
+            Console.WriteLine(success
+                ? $"Task {taskId} deleted."
+                : $"Task {taskId} not found.");
+        }    
     }
 }

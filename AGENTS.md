@@ -37,14 +37,12 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 - **Infrastructure implements Core interfaces** (`ICadenceStore`, `IRoutineSource`, etc.).
 - **Worker and Cli are application shells** that wire up Core + Infrastructure.
 
-
 ## DI Lifetime Rationale
 
 - **`RuleEngine` is singleton** because it holds mutable state (`_lastBlockLabel`, `_lastCycleId`, `_initialized`) that must survive across ticks. If scoped, each tick gets a fresh instance and the `_initialized` flag resets — block transitions are never detected.
 - **`CadenceDbContext` is singleton** because SQLite is a file-based, single-writer database. No client-server connection pool, no concurrent scope conflicts. This is safe for a single-threaded background worker + CLI.
 - **`ICadenceStore` is singleton** to match the DbContext lifetime it wraps.
 - **Migration path:** If Cadence ever becomes a web app or multi-threaded service, switch `RuleEngine` to scoped and inject `IServiceScopeFactory` to resolve `ICadenceStore` per tick. The constructor signature does not change — only the DI registration and worker scope management change.
-
 
 ## Rule Engine
 
@@ -70,7 +68,6 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 - `CadenceDbContext.Database.EnsureCreated()` is called in test setup — no migration step required.
 - Global `using Xunit;` is declared in `Cadence.Tests.csproj`.
 
-
 ## DI & Testing Patterns
 
 - `SystemClock : IClock` exists for production. Tests use a `FakeClock` that returns a fixed `DateTimeOffset`.
@@ -78,17 +75,15 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 - `RuleEngine` is registered as `AddSingleton` (not transient) because it holds mutable state (`_lastBlockLabel`, `_lastCycleId`).
 - `INotificationSender` is implemented by `ConsoleNotificationSender` (`Cadence.Infrastructure/Notifications/NotificationSender.cs`). Registered as singleton.
 
-
 ## Routine File Format
 
 `JsonRoutineLoader` reads JSON with `{ "profile": "...", "blocks": [...] }`. Block times use 24-hour `HH:mm` format. Enum values are camelCase strings (e.g., `"wake"`, `"sleep"`).
 
-
-
+The file is at `Cadence.Infrastructure/Routines/default.json` and is copied to output via `CopyToOutputDirectory` in the Infrastructure csproj.
 
 ## Config vs State Separation
 
-- **`routines/default.json`** is Configuration as Code — edited in VS Code, version-controlled, defines the block schedule (times, labels, roles). Never edited by the CLI at runtime.
+- **`Cadence.Infrastructure/Routines/default.json`** is Configuration as Code — edited in VS Code, version-controlled, defines the block schedule (times, labels, roles). Never edited by the CLI at runtime.
 - **`CadenceDB/cadence.db`** is mutable runtime state — tasks, notification logs, **heartbeats**. The CLI writes here only.
 - **CLI never touches config in v1.** Hot-reload (`IOptionsMonitor` / `FileSystemWatcher`) is deferred to a future version.
 
@@ -103,7 +98,7 @@ All projects target `net8.0` with `<Nullable>enable</Nullable>` and `<ImplicitUs
 | `containers` | `containers` | List all blocks with pending counts + orphan detection |
 | `start` | `start` | Launch background worker as attached child process |
 | `stop` | `stop` | Kill background worker via PID file |
-| `heartbeat` | `heartbeat` | Check if worker is alive (last tick ≤ 90s ago) |
+| `heartbeat` | `heartbeat` | Check if worker is alive (last tick ≤ 33s ago) |
 
 ## Containers Command Design
 
@@ -115,7 +110,7 @@ Blocks are **never** inserted into SQLite. They are Configuration as Code — th
 
 ## Worker Liveness Pattern
 
-`RuleEngineWorker` writes a `Heartbeat` record (singleton row, `WorkerId = 1`) to SQLite every tick (30s). The CLI `heartbeat` command reads `LastTickAt` and compares against `DateTimeOffset.Now` — if ≤ 90s (3× interval), worker is alive. If no heartbeat row exists, worker has never ticked.
+`RuleEngineWorker` writes a `Heartbeat` record (singleton row, `WorkerId = 1`) to SQLite every tick (30s). The CLI `heartbeat` command reads `LastTickAt` and compares against `DateTimeOffset.Now` — if ≤ 33s (interval + 3s grace), worker is alive. If no heartbeat row exists, worker has never ticked.
 
 ## Worker Process Model
 
@@ -131,4 +126,3 @@ Both CLI and Worker share a single `CadenceDB/` directory at the solution root. 
 ## Naming
 
 The repo directory is `Cadence-Working-name-` (with trailing hyphen). The solution and namespaces use `Cadence` without the suffix.
-
