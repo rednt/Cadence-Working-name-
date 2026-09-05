@@ -441,6 +441,6 @@ namespace Cadence.Cli
             Console.WriteLine(success
                 ? $"Task {taskId} deleted."
                 : $"Task {taskId} not found.");
-        }    
+        }
     }
 }

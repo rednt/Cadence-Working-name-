@@ -97,7 +97,7 @@ namespace Cadence.Infrastructure.Persistence
         }
         public async Task<bool> DeleteTaskAsync(int id, CancellationToken ct = default)
         {
-            var task = await _db.Tasks.FindAsync(new object[] { id}, ct);
+            var task = await _db.Tasks.FindAsync(new object[] { id }, ct);
             if (task is null)
             {
                 return false;
